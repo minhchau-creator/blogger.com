@@ -72,6 +72,24 @@ const userSchema = mongoose.Schema({
             default: 0
         },
     },
+    notification_settings: {
+        all: {
+            type: Boolean,
+            default: true
+        },
+        comments: {
+            type: Boolean,
+            default: true
+        },
+        likes: {
+            type: Boolean,
+            default: true
+        },
+        replies: {
+            type: Boolean,
+            default: true
+        }
+    },
     google_auth: {
         type: Boolean,
         default: false
