@@ -1,342 +1,183 @@
-# 🗄️ DATABASE STRUCTURE GUIDE
+# Database Structure - MERN Blogging Website
 
-## Overview
-Your blogging website uses **MongoDB** - a NoSQL database that stores data as JSON-like documents.
+## Entity Relationship Diagram
 
-**Database Name:** `blogging-website`
+```mermaid
+erDiagram
+    USERS ||--o{ BLOGS : creates
+    USERS ||--o{ COMMENTS : writes
+    USERS ||--o{ NOTIFICATIONS : receives
+    USERS ||--o{ NOTIFICATIONS : triggers
+    BLOGS ||--o{ COMMENTS : contains
+    BLOGS ||--o{ NOTIFICATIONS : generates
+    COMMENTS ||--o{ COMMENTS : replies_to
+    COMMENTS ||--o{ NOTIFICATIONS : creates
 
----
-
-## 📦 Collections (Tables)
-
-### 1️⃣ **users** Collection
-Stores all user accounts (both Guest who signed up and logged-in Users)
-
-```javascript
-{
-  _id: ObjectId("..."),                    // Auto-generated unique ID
-  
-  personal_info: {
-    fullname: "John Doe",                  // User's full name
-    email: "john@example.com",             // Unique email
-    password: "$2b$10$hashed...",           // Bcrypt hashed password (SECURE!)
-    username: "johndoe123",                // Unique username
-    bio: "I love writing blogs",           // User bio (max 200 chars)
-    profile_img: "https://api.dicebear..." // Auto-generated avatar
-  },
-  
-  social_links: {
-    youtube: "https://youtube.com/...",
-    instagram: "",
-    facebook: "",
-    twitter: "",
-    github: "",
-    website: ""
-  },
-  
-  account_info: {
-    total_posts: 5,                        // Number of blogs published
-    total_reads: 150                       // Total views on all blogs
-  },
-  
-  google_auth: false,                      // True if signed up with Google
-  blogs: [                                 // Array of blog IDs user created
-    ObjectId("..."),
-    ObjectId("...")
-  ],
-  
-  joinedAt: "2025-12-23T12:30:00.000Z"    // Account creation date
-}
-```
-
----
-
-### 2️⃣ **blogs** Collection
-Stores all blog posts (both public and private drafts)
-
-```javascript
-{
-  _id: ObjectId("..."),
-  
-  blog_id: "my-first-blog-abc123",         // URL-friendly unique ID
-  title: "My First Blog Post",             // Blog title
-  banner: "https://...image.jpg",          // Banner image URL
-  des: "This is my first blog...",         // Description (max 200 chars)
-  
-  content: [                               // EditorJS blocks (rich content)
-    {
-      type: "paragraph",
-      data: { text: "Hello world..." }
-    },
-    {
-      type: "header",
-      data: { text: "Introduction", level: 2 }
-    },
-    {
-      type: "image",
-      data: { url: "...", caption: "..." }
+    USERS {
+        ObjectId _id PK
+        string fullname
+        string email UK
+        string password
+        string username UK
+        string bio
+        string profile_img
+        object social_links
+        number total_posts
+        number total_reads
+        object notification_settings
+        boolean google_auth
+        array blogs
+        date joinedAt
     }
-  ],
-  
-  tags: ["technology", "javascript"],      // Blog tags (max 10)
-  
-  author: ObjectId("..."),                 // Reference to user who wrote it
-  
-  activity: {
-    total_likes: 25,                       // Number of likes
-    total_comments: 8,                     // Number of comments
-    total_reads: 150,                      // Number of views
-    total_parent_comments: 5               // Top-level comments (not replies)
-  },
-  
-  comments: [                              // Array of comment IDs
-    ObjectId("..."),
-    ObjectId("...")
-  ],
-  
-  draft: false,                            // false = published, true = draft
-  
-  publishedAt: "2025-12-23T14:00:00.000Z" // Publication date
-}
+
+    BLOGS {
+        ObjectId _id PK
+        string blog_id UK
+        string title
+        string banner
+        string des
+        mixed content
+        array tags
+        ObjectId author FK
+        number total_likes
+        number total_comments
+        number total_reads
+        number total_parent_comments
+        array comments
+        boolean draft
+        number trending_score
+        date publishedAt
+    }
+
+    COMMENTS {
+        ObjectId _id PK
+        ObjectId blog_id FK
+        ObjectId blog_author FK
+        string comment
+        ObjectId commented_by FK
+        array children
+        boolean isReply
+        ObjectId parent FK
+        boolean isDeleted
+        date commentedAt
+    }
+
+    NOTIFICATIONS {
+        ObjectId _id PK
+        string type
+        ObjectId blog FK
+        ObjectId notification_for FK
+        ObjectId user FK
+        ObjectId comment FK
+        ObjectId reply FK
+        ObjectId replied_on_comment FK
+        boolean seen
+        date createdAt
+        date updatedAt
+    }
 ```
 
----
+## Collections Overview
 
-### 3️⃣ **comments** Collection
-Stores all comments and replies (nested structure)
+### 1. Users Collection
+**Collection name:** `users`
 
-```javascript
-{
-  _id: ObjectId("..."),
-  
-  blog_id: ObjectId("..."),                // Which blog this comment is on
-  blog_author: ObjectId("..."),            // Blog's author (for notifications)
-  
-  comment: "Great article! Thanks!",       // The actual comment text
-  
-  commented_by: ObjectId("..."),           // Who wrote this comment
-  
-  isReply: false,                          // false = parent comment, true = reply
-  
-  parent: ObjectId("..."),                 // If reply, ID of parent comment
-  
-  children: [                              // If parent, IDs of all replies
-    ObjectId("..."),
-    ObjectId("...")
-  ],
-  
-  commentedAt: "2025-12-23T15:00:00.000Z" // When comment was posted
-}
+| Field | Type | Description | Constraints |
+|-------|------|-------------|-------------|
+| _id | ObjectId | Primary Key | Auto-generated |
+| personal_info.fullname | String | Full name | Required, Min 3 chars |
+| personal_info.email | String | Email address | Required, Unique, Lowercase |
+| personal_info.password | String | Hashed password | BCrypt hash |
+| personal_info.username | String | Username | Unique, Min 3 chars |
+| personal_info.bio | String | User biography | Max 200 chars |
+| personal_info.profile_img | String | Profile image URL | Auto-generated (dicebear) |
+| social_links | Object | Social media links | youtube, instagram, facebook, twitter, github, website |
+| account_info.total_posts | Number | Total blog posts | Default: 0 |
+| account_info.total_reads | Number | Total reads across all blogs | Default: 0 |
+| notification_settings | Object | Notification preferences | all, comments, likes, replies |
+| google_auth | Boolean | Google OAuth enabled | Default: false |
+| blogs | Array[ObjectId] | Reference to blogs | Ref: 'blogs' |
+| joinedAt | Date | Account creation date | Auto-generated |
+
+### 2. Blogs Collection
+**Collection name:** `blogs`
+
+| Field | Type | Description | Constraints |
+|-------|------|-------------|-------------|
+| _id | ObjectId | Primary Key | Auto-generated |
+| blog_id | String | URL-friendly ID | Required, Unique (nanoid) |
+| title | String | Blog title | Required |
+| banner | String | Banner image URL | Optional |
+| des | String | Description | Max 200 chars |
+| content | Mixed | Blog content | Editor.js format |
+| tags | Array[String] | Blog tags | Optional |
+| author | ObjectId | Blog author | Required, Ref: 'users' |
+| activity.total_likes | Number | Total likes | Default: 0 |
+| activity.total_comments | Number | Total comments (including replies) | Default: 0 |
+| activity.total_reads | Number | Total views | Default: 0 |
+| activity.total_parent_comments | Number | Parent comments only | Default: 0 |
+| comments | Array[ObjectId] | Comment references | Ref: 'comments' |
+| draft | Boolean | Draft status | Default: false |
+| trending_score | Number | Calculated trending score | Default: 0 |
+| publishedAt | Date | Publication date | Auto-generated |
+
+**Trending Score Formula:**
+```
+score = (likes × 1 + comments × 3 + reads × 0.05) / (age_in_hours + 2)^1.8
 ```
 
-**Comment Structure Example:**
+### 3. Comments Collection
+**Collection name:** `comments`
+
+| Field | Type | Description | Constraints |
+|-------|------|-------------|-------------|
+| _id | ObjectId | Primary Key | Auto-generated |
+| blog_id | ObjectId | Parent blog | Required, Ref: 'blogs' |
+| blog_author | ObjectId | Blog author | Required, Ref: 'users' |
+| comment | String | Comment text | Required |
+| commented_by | ObjectId | Comment author | Required, Ref: 'users' |
+| children | Array[ObjectId] | Child comments (replies) | Ref: 'comments' |
+| isReply | Boolean | Is this a reply? | Optional |
+| parent | ObjectId | Parent comment | Optional, Ref: 'comments' |
+| isDeleted | Boolean | Soft delete flag | Default: false |
+| commentedAt | Date | Comment creation date | Auto-generated |
+
+**Tree Structure:**
 ```
-Comment 1 (parent)
-├── Reply 1.1
-├── Reply 1.2
-│   └── Reply 1.2.1 (nested reply)
-└── Reply 1.3
-
-Comment 2 (parent)
-└── Reply 2.1
-```
-
----
-
-### 4️⃣ **notifications** Collection
-Stores all user notifications (likes, comments, replies)
-
-```javascript
-{
-  _id: ObjectId("..."),
-  
-  type: "like",                            // "like", "comment", or "reply"
-  
-  blog: ObjectId("..."),                   // Which blog the notification is about
-  
-  notification_for: ObjectId("..."),       // Who should receive this notification
-  
-  user: ObjectId("..."),                   // Who triggered the notification
-  
-  comment: ObjectId("..."),                // If comment/reply, the comment ID
-  reply: ObjectId("..."),                  // If reply, the reply ID
-  replied_on_comment: ObjectId("..."),     // Original comment that was replied to
-  
-  seen: false,                             // false = unread, true = read
-  
-  createdAt: "2025-12-23T16:00:00.000Z",
-  updatedAt: "2025-12-23T16:05:00.000Z"
-}
+Comment (parent)
+├── Reply 1 (child, isReply: true, parent: Comment._id)
+│   ├── Reply 1.1 (child of Reply 1)
+│   └── Reply 1.2
+└── Reply 2 (child, isReply: true, parent: Comment._id)
 ```
 
----
+### 4. Notifications Collection
+**Collection name:** `notifications`
 
-## 🔗 **How Collections are Related**
+| Field | Type | Description | Constraints |
+|-------|------|-------------|-------------|
+| _id | ObjectId | Primary Key | Auto-generated |
+| type | String | Notification type | Enum: ["like", "comment", "reply"] |
+| blog | ObjectId | Related blog | Required, Ref: 'blogs' |
+| notification_for | ObjectId | Recipient user | Required, Ref: 'users' |
+| user | ObjectId | Triggering user | Required, Ref: 'users' |
+| comment | ObjectId | Related comment | Optional, Ref: 'comments' |
+| reply | ObjectId | Reply comment | Optional, Ref: 'comments' |
+| replied_on_comment | ObjectId | Original comment being replied to | Optional, Ref: 'comments' |
+| seen | Boolean | Read status | Default: false |
+| createdAt | Date | Creation timestamp | Auto-generated |
+| updatedAt | Date | Last update timestamp | Auto-generated |
 
-```
-USER
-  │
-  ├─── creates ──→ BLOG
-  │                  │
-  │                  ├─── has ──→ COMMENTS
-  │                  │              │
-  │                  │              └─── has replies ──→ COMMENTS (nested)
-  │                  │
-  │                  └─── generates ──→ NOTIFICATIONS
-  │
-  └─── receives ──→ NOTIFICATIONS
-```
+## Features Summary
 
----
-
-## 🔍 **How to View Your Database**
-
-### Option 1: MongoDB Compass (GUI - Recommended for Beginners)
-
-1. Download: https://www.mongodb.com/try/download/compass
-2. Install and open
-3. Connect to: `mongodb://localhost:27017`
-4. Select database: `blogging-website`
-5. Click each collection to see your data!
-
-### Option 2: MongoDB Shell (Command Line)
-
-```bash
-# Connect to MongoDB
-mongosh
-
-# Switch to your database
-use blogging-website
-
-# View all collections
-show collections
-
-# View all users
-db.users.find().pretty()
-
-# View all blogs
-db.blogs.find().pretty()
-
-# Count documents
-db.users.countDocuments()
-
-# Find specific user by email
-db.users.findOne({ "personal_info.email": "test@example.com" })
-
-# Find all published blogs (not drafts)
-db.blogs.find({ draft: false }).pretty()
-
-# Find blogs by specific author
-db.blogs.find({ author: ObjectId("...your_user_id...") })
-```
-
-### Option 3: VS Code Extension
-
-1. Install: "MongoDB for VS Code"
-2. Connect to `mongodb://localhost:27017`
-3. Browse collections visually in VS Code!
-
----
-
-## 🔐 **Security Features**
-
-1. **Passwords:** Never stored as plain text! Hashed with bcrypt
-   - Original: `"MyPassword123"`
-   - Stored: `"$2b$10$xyz...encrypted..."`
-
-2. **JWT Tokens:** Used for authentication
-   - Generated when you login
-   - Stored in sessionStorage (browser)
-   - Sent with every API request to verify identity
-
-3. **Validation:** 
-   - Email must be unique
-   - Username must be unique
-   - Password must be 6-20 chars with uppercase, lowercase, and number
-
----
-
-## 📊 **Example: What Happens When You Sign Up**
-
-1. **You submit:** 
-   ```json
-   {
-     "fullname": "John Doe",
-     "email": "john@test.com",
-     "password": "Test123"
-   }
-   ```
-
-2. **Backend creates:**
-   ```javascript
-   // Password is hashed
-   const hashedPassword = await bcrypt.hash("Test123", 10);
-   // Result: "$2b$10$randomsalt..."
-   
-   // Username generated from email
-   const username = "johntest" + nanoid(5); // "johntest_ab3f2"
-   
-   // User document saved to database
-   {
-     personal_info: {
-       fullname: "John Doe",
-       email: "john@test.com",
-       password: "$2b$10$randomsalt...",
-       username: "johntest_ab3f2",
-       bio: "",
-       profile_img: "https://api.dicebear.com/..."
-     },
-     social_links: { /* all empty */ },
-     account_info: {
-       total_posts: 0,
-       total_reads: 0
-     },
-     google_auth: false,
-     blogs: [],
-     joinedAt: new Date()
-   }
-   ```
-
-3. **You receive:**
-   ```json
-   {
-     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-     "profile_img": "https://api.dicebear.com/...",
-     "username": "johntest_ab3f2",
-     "fullname": "John Doe"
-   }
-   ```
-
-4. **Frontend stores token in sessionStorage**
-5. **You're now logged in!**
-
----
-
-## 🎯 **Guest vs User - What's the Difference?**
-
-**IMPORTANT:** There's no separate "guest" collection!
-
-- **Guest** = Anyone NOT logged in (no token)
-  - Can READ public blogs
-  - Can SEARCH blogs
-  - Cannot CREATE, LIKE, or COMMENT
-
-- **User** = Logged in (has JWT token)
-  - Can do EVERYTHING Guest can do
-  - Plus: CREATE blogs, LIKE, COMMENT, manage profile
-
-**The difference is NOT in the database, but in the JWT token!**
-
----
-
-## 💡 **Quick Tips**
-
-- Each document gets a unique `_id` automatically
-- ObjectId references link collections together
-- Arrays can hold multiple references (one user → many blogs)
-- Timestamps track when data was created/updated
-- Indexes on `email` and `username` make searches faster
-
----
-
-Need help viewing your actual data? Let me know!
+✅ User authentication (JWT + Google OAuth)
+✅ Blog CRUD operations
+✅ Nested comment system (unlimited depth)
+✅ Soft delete for comments
+✅ Real-time notifications with badge count
+✅ Smart trending algorithm with time decay
+✅ Image upload (profile, banner, blog images)
+✅ Social links integration
+✅ Search functionality (title/tags/author)
+✅ Notification preferences
+✅ Draft system
