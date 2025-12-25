@@ -98,46 +98,25 @@ const HomePage = () => {
                 {/* latest blogs */}
                 <div className="w-full">
 
-                    <InPageNavigation routes={[pageState, "trending blogs"]} defaultHidden={["trending blogs"]}>
+                    {
+                        blogs == null ? (
+                            <Loader />
+                        ) :
+                            (
+                                blogs.results.length ?
+                                    blogs.results.map((blog, i) => {
+                                        return (
+                                            <AnimationWrapper transition={{ duration: 1, delay: i * .1 }} key={i}>
+                                                <BlogPostCard content={blog} author={blog.author.personal_info} />
+                                            </AnimationWrapper>
+                                        );
+                                    })
+                                    :
+                                    <NoDataMessage message="No blogs published" />
+                            )
+                    }
 
-                        <>
-                            {
-                                blogs == null ? (
-                                    <Loader />
-                                ) :
-                                    (
-                                        blogs.results.length ?
-                                            blogs.results.map((blog, i) => {
-                                                return (
-                                                    <AnimationWrapper transition={{ duration: 1, delay: i * .1 }} key={i}>
-                                                        <BlogPostCard content={blog} author={blog.author.personal_info} />
-                                                    </AnimationWrapper>
-                                                );
-                                            })
-                                            :
-                                            <NoDataMessage message="No blogs published" />
-                                    )
-                            }
-                            <LoadMoreDataBtn state={blogs} fetchDataFun={(pageState == "home" ? fetchLatestBlogs : fetchBlogsByCategory)} />
-                        </>
-
-                        {
-                            trendingBlogs == null ? <Loader /> :
-                                (
-                                    trendingBlogs.length ?
-                                        trendingBlogs.map((blog, i) => {
-                                            return (
-                                                <AnimationWrapper transition={{ duration: 1, delay: i * .1 }} key={i}>
-                                                    <MinimalBlogPost blog={blog} index={i} />
-                                                </AnimationWrapper>
-                                            );
-                                        })
-                                        :
-                                        <NoDataMessage message="No trending blogs" />
-                                )
-                        }
-
-                    </InPageNavigation>
+                    <LoadMoreDataBtn state={blogs} fetchDataFun={fetchLatestBlogs} />
 
                 </div>
 

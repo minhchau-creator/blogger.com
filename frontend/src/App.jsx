@@ -14,6 +14,7 @@ import ChangePassword from "./pages/change-password.page";
 import NotificationSettings from "./pages/notification-settings.page";
 import Notifications from "./pages/notifications.page";
 import ManageBlogs from "./pages/manage-blogs.page";
+import UserProfilePage from "./pages/user-profile.page";
 
 export const UserContext = createContext({})
 
@@ -48,7 +49,7 @@ const App = () => {
                     <Route path="signin" element={<UserAuthForm type="sign-in" />} />
                     <Route path="signup" element={<UserAuthForm type="sign-up" />} />
                     <Route path="search/:query" element={<SearchPage />} />
-                    <Route path="user/:id" element={<ProfilePage />} />
+                    <Route path="user/:id" element={<UserProfilePage />} />
                     <Route path="blog/:blog_id" element={<BlogPage />} />
                     <Route path="*" element={<PageNotFound />} />
                 </Route>

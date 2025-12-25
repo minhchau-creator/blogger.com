@@ -1,10 +1,18 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getDay } from "../common/date";
 
 const BlogPostCard = ({ content, author }) => {
 
-    let { publishedAt, tags, title, des, banner, activity: { total_likes }, blog_id: id } = content;
+    let { publishedAt, tags, title, des, banner, activity: { total_likes, total_reads, total_comments }, blog_id: id } = content;
     let { fullname, username, profile_img } = author;
+
+    const navigate = useNavigate();
+
+    const handleTagClick = (e, tag) => {
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(`/search/${tag}`);
+    }
 
     return (
         <Link to={`/blog/${id}`} className="flex gap-8 items-center border-b border-grey pb-5 mb-4">
@@ -21,12 +29,22 @@ const BlogPostCard = ({ content, author }) => {
                 <div className="flex gap-4 mt-7">
                     {
                         tags.map((tag, index) => (
-                            <span key={index} className="btn-light py-1 px-4">{tag}</span>
+                            <button key={index} className="btn-light py-1 px-4" onClick={(e) => handleTagClick(e, tag)}>
+                                {tag}
+                            </button>
                         ))
                     }
                     <span className="ml-3 flex items-center gap-2 text-dark-grey">
                         <i className="fi fi-rr-heart text-xl"></i>
                         {total_likes}
+                    </span>
+                    <span className="flex items-center gap-2 text-dark-grey">
+                        <i className="fi fi-rr-eye text-xl"></i>
+                        {total_reads}
+                    </span>
+                    <span className="flex items-center gap-2 text-dark-grey">
+                        <i className="fi fi-rr-comment-dots text-xl"></i>
+                        {total_comments}
                     </span>
                 </div>
 

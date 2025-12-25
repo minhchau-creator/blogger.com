@@ -301,28 +301,83 @@ server.get("/trending-blogs", (req, res) => {
 // Search blogs
 server.post("/search-blogs", (req, res) => {
     
-    let { tag, query, author, page, limit, eliminate_blog } = req.body;
+    let { tag, query, author, page, limit, eliminate_blog, sort_by } = req.body;
     
     let findQuery;
     
     if (tag) {
         findQuery = { tags: tag, draft: false, blog_id: { $ne: eliminate_blog } };
     } else if (query) {
-        findQuery = { draft: false, title: new RegExp(query, 'i') }
+        findQuery = { 
+            draft: false, 
+            $or: [
+                { title: new RegExp(query, 'i') },
+                { des: new RegExp(query, 'i') },
+                { tags: new RegExp(query, 'i') }
+            ]
+        }
     } else if (author) {
         findQuery = { author, draft: false }
     }
     
-    let maxLimit = limit ? limit : 2;
+    let maxLimit = limit ? limit : 5;
+    
+    // Determine sort order
+    let sortQuery = {};
+    if (sort_by === 'likes') {
+        sortQuery = { "activity.total_likes": -1 };
+    } else if (sort_by === 'comments') {
+        sortQuery = { "activity.total_comments": -1 };
+    } else {
+        sortQuery = { "publishedAt": -1 }; // default: latest
+    }
     
     Blog.find(findQuery)
     .populate("author", "personal_info.profile_img personal_info.username personal_info.fullname -_id")
-    .sort({ "publishedAt": -1 })
+    .sort(sortQuery)
     .select("blog_id title des banner activity tags publishedAt -_id")
     .skip((page - 1) * maxLimit)
     .limit(maxLimit)
     .then(blogs => {
         return res.status(200).json({ blogs })
+    })
+    .catch(err => {
+        return res.status(500).json({ error: err.message })
+    })
+    
+})
+
+// Search users (bloggers)
+server.post("/search-users", (req, res) => {
+    
+    let { query, page } = req.body;
+    let maxLimit = 50;
+    
+    User.find({ "personal_info.username": new RegExp(query, 'i') })
+    .limit(maxLimit)
+    .skip((page - 1) * maxLimit)
+    .select("personal_info.fullname personal_info.username personal_info.profile_img -_id")
+    .then(users => {
+        return res.status(200).json({ users })
+    })
+    .catch(err => {
+        return res.status(500).json({ error: err.message })
+    })
+    
+})
+
+// Get trending tags
+server.get("/trending-tags", (req, res) => {
+    
+    Blog.aggregate([
+        { $match: { draft: false } },
+        { $unwind: "$tags" },
+        { $group: { _id: "$tags", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 10 }
+    ])
+    .then(tags => {
+        return res.status(200).json({ tags })
     })
     .catch(err => {
         return res.status(500).json({ error: err.message })
@@ -340,7 +395,14 @@ server.post("/search-blogs-count", (req, res) => {
     if (tag) {
         findQuery = { tags: tag, draft: false };
     } else if (query) {
-        findQuery = { draft: false, title: new RegExp(query, 'i') }
+        findQuery = { 
+            draft: false, 
+            $or: [
+                { title: new RegExp(query, 'i') },
+                { des: new RegExp(query, 'i') },
+                { tags: new RegExp(query, 'i') }
+            ]
+        }
     } else if (author) {
         findQuery = { author, draft: false }
     }
