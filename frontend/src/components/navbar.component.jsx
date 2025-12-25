@@ -25,10 +25,12 @@ const Navbar = () => {
         }
     }
 
-    const handleBlur = () => {
-        setTimeout(() => {
-            setUserNavPanel(false);
-        }, 500);
+    const handleMouseEnter = () => {
+        setUserNavPanel(true);
+    }
+
+    const handleMouseLeave = () => {
+        setUserNavPanel(false);
     }
 
     return (
@@ -72,7 +74,7 @@ const Navbar = () => {
                             </button>
                         </Link>
 
-                        <div className="relative" onMouseLeave={handleBlur}>
+                        <div className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
                             <button className="w-12 h-12 mt-1" onClick={handleUserNavPanel}>
                                 <img src={profile_img} className="w-full h-full object-cover rounded-full" />
                             </button>

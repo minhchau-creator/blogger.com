@@ -23,33 +23,20 @@ const PORT = process.env.PORT || 3000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configure multer for file upload with dynamic user folders
-const storage = multer.diskStorage({
-    destination: async function (req, file, cb) {
-        try {
-            // Get user info from JWT
-            const user = await User.findById(req.user).select('personal_info.username');
-            
-            if (!user) {
-                return cb(new Error('User not found'));
-            }
-            
-            const username = user.personal_info.username;
-            const userAvatarDir = path.join(__dirname, 'uploads', 'images', username, 'avatar');
-            
-            // Create directory if it doesn't exist
-            if (!fs.existsSync(userAvatarDir)) {
-                fs.mkdirSync(userAvatarDir, { recursive: true });
-            }
-            
-            cb(null, userAvatarDir);
-        } catch (err) {
-            cb(err);
+// Simple storage - all images in one folder
+const imageStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const imagesDir = path.join(__dirname, 'uploads', 'images');
+        
+        if (!fs.existsSync(imagesDir)) {
+            fs.mkdirSync(imagesDir, { recursive: true });
         }
+        
+        cb(null, imagesDir);
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + nanoid(10);
-        cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+        cb(null, uniqueSuffix + path.extname(file.originalname));
     }
 });
 
@@ -66,13 +53,13 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    storage: imageStorage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
     fileFilter: fileFilter
 });
 
 // Helper function to delete old avatar
-const deleteOldAvatar = (oldImageUrl, username) => {
+const deleteOldAvatar = (oldImageUrl, userId) => {
     try {
         // Check if it's a local file (not a default dicebear avatar)
         if (oldImageUrl && oldImageUrl.includes('/uploads/images/')) {
@@ -160,6 +147,22 @@ const verifyJWT = (req, res, next) => {
 // Test route
 server.get('/', (req, res) => {
     res.json({ message: 'Server is running!' });
+});
+
+// Debug route - check drafts
+server.get('/check-drafts', async (req, res) => {
+    try {
+        const drafts = await Blog.find({ draft: true }).select('title blog_id draft author');
+        const published = await Blog.find({ draft: false }).select('title blog_id draft author');
+        res.json({ 
+            draftsCount: drafts.length,
+            publishedCount: published.length,
+            drafts: drafts,
+            published: published
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // SIGNUP route
@@ -394,6 +397,10 @@ server.post('/create-blog', verifyJWT, (req, res) => {
     
     let { title, des, banner, tags, content, draft, id } = req.body;
     
+    console.log('📝 Create blog request received:');
+    console.log('Tags received:', tags);
+    console.log('Tags type:', typeof tags, 'Is array:', Array.isArray(tags));
+    
     if (!title.length) {
         return res.status(403).json({ error: "You must provide a title" });
     }
@@ -417,17 +424,29 @@ server.post('/create-blog', verifyJWT, (req, res) => {
     }
     
     tags = tags.map(tag => tag.toLowerCase());
+    console.log('Tags after lowercase:', tags);
     
     let blog_id = id || title.replace(/[^a-zA-Z0-9]/g, ' ').replace(/\s+/g, "-").trim() + nanoid();
     
     if (id) {
         
         Blog.findOneAndUpdate({ blog_id }, { title, des, banner, content, tags, draft: draft ? draft : false })
-        .then(() => {
+        .then(blog => {
+            
+            if (blog.draft && !draft) {
+                User.findOneAndUpdate({ _id: authorId }, { $inc : { "account_info.total_posts" : 1 } })
+                .then(user => console.log('total posts incremented'))
+                .catch(err => console.log(err.message));
+            } else if (!blog.draft && draft) {
+                User.findOneAndUpdate({ _id: authorId }, { $inc : { "account_info.total_posts" : -1 } })
+                .then(user => console.log('total posts decremented'))
+                .catch(err => console.log(err.message));
+            }
+            
             return res.status(200).json({ id: blog_id });
         })
         .catch(err => {
-            return res.status(500).json({ error: "Failed to update total posts number" });
+            return res.status(500).json({ error: "Failed to update blog" });
         })
         
     } else {
@@ -468,6 +487,11 @@ server.post("/get-blog", (req, res) => {
     .populate("author", "personal_info.fullname personal_info.username personal_info.profile_img")
     .select("title des content banner activity publishedAt blog_id tags")
     .then(blog => {
+        
+        console.log('📖 Get blog - Content type:', typeof blog.content, 'Is array:', Array.isArray(blog.content));
+        if (blog.content && blog.content.length > 0) {
+            console.log('Content sample:', JSON.stringify(blog.content).substring(0, 200));
+        }
         
         User.findOneAndUpdate({ "personal_info.username": blog.author.personal_info.username }, {
             $inc : { "account_info.total_reads": incrementVal }
@@ -965,6 +989,57 @@ server.post("/update-notification-settings", verifyJWT, (req, res) => {
     });
     
 });
+
+// ============= BLOG API ROUTES =============
+
+// Upload blog banner (USER only)
+server.post("/upload-blog-banner", verifyJWT, upload.single('banner'), async (req, res) => {
+    
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+        
+        const imageUrl = `${req.protocol}://${req.get('host')}/uploads/images/${req.file.filename}`;
+        
+        return res.status(200).json({ 
+            url: imageUrl,
+            message: "Banner uploaded successfully" 
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+    
+});
+
+// Upload blog content image (USER only)
+server.post("/upload-blog-image", verifyJWT, upload.single('image'), async (req, res) => {
+    
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+        
+        const imageUrl = `${req.protocol}://${req.get('host')}/uploads/images/${req.file.filename}`;
+        
+        console.log('📸 Image uploaded:', imageUrl);
+        
+        return res.status(200).json({ 
+            success: 1,
+            file: {
+                url: imageUrl
+            }
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+    
+});
+
+// Create blog endpoint is at line 394
+
+// Get blog for editing (USER only - own blogs)
+// Get blog endpoint is at line 480
 
 server.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
