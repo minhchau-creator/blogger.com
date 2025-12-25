@@ -1,15 +1,18 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import logo from "../imgs/logo.png";
-import { UserContext } from "../App";
+import { UserContext, NotificationRefreshContext } from "../App";
 import UserNavigationPanel from "./user-navigation.component";
+import axios from "axios";
 
 const Navbar = () => {
 
     const [searchBoxVisibility, setSearchBoxVisibility] = useState(false);
     const [userNavPanel, setUserNavPanel] = useState(false);
+    const [notificationCount, setNotificationCount] = useState(0);
 
     const { userAuth, userAuth: { access_token, profile_img } } = useContext(UserContext);
+    const { notificationRefreshTrigger } = useContext(NotificationRefreshContext);
 
     const navigate = useNavigate();
 
@@ -32,6 +35,31 @@ const Navbar = () => {
     const handleMouseLeave = () => {
         setUserNavPanel(false);
     }
+
+    const fetchNotificationCount = () => {
+        if (access_token) {
+            axios.get(import.meta.env.VITE_SERVER_DOMAIN + "/unread-notification-count", {
+                headers: {
+                    'Authorization': `Bearer ${access_token}`
+                }
+            })
+            .then(({ data: { count } }) => {
+                setNotificationCount(count);
+            })
+            .catch(err => {
+                console.log(err);
+            });
+        }
+    }
+
+    useEffect(() => {
+        fetchNotificationCount();
+
+        // Poll for new notifications every 5 seconds
+        const interval = setInterval(fetchNotificationCount, 3500);
+
+        return () => clearInterval(interval);
+    }, [access_token, notificationRefreshTrigger]);
 
     return (
         <>
@@ -71,6 +99,13 @@ const Navbar = () => {
                         <Link to="/dashboard/notifications">
                             <button className="w-12 h-12 rounded-full bg-grey relative hover:bg-black/10">
                                 <i className="fi fi-rr-bell text-2xl block mt-1"></i>
+                                {
+                                    notificationCount > 0 && (
+                                        <span className="absolute top-0 right-0 bg-red text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center">
+                                            {notificationCount > 9 ? '9+' : notificationCount}
+                                        </span>
+                                    )
+                                }
                             </button>
                         </Link>
 

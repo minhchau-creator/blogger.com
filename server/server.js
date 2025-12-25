@@ -16,6 +16,28 @@ import Blog from './Schema/Blog.js';
 import Notification from './Schema/Notification.js';
 import Comment from './Schema/Comment.js';
 
+// Trending score calculation function
+const calculateTrendingScore = (blog) => {
+    const { total_likes, total_comments, total_reads } = blog.activity;
+    const publishedAt = new Date(blog.publishedAt);
+    const now = new Date();
+
+    // Calculate age in hours
+    const ageInHours = (now - publishedAt) / (1000 * 60 * 60);
+
+    // Engagement score: comments worth more than likes, reads worth less
+    const engagementScore = (total_likes * 1) + (total_comments * 3) + (total_reads * 0.05);
+
+    // Time decay with gravity = 1.8 (higher = older posts decay faster)
+    const gravity = 1.8;
+    const timeDecay = Math.pow(ageInHours + 2, gravity);
+
+    // Final score
+    const score = engagementScore / timeDecay;
+
+    return score;
+};
+
 const server = express();
 const PORT = process.env.PORT || 3000;
 
@@ -283,19 +305,86 @@ server.post("/all-latest-blogs-count", (req, res) => {
 
 // Get trending blogs
 server.get("/trending-blogs", (req, res) => {
-    
-    Blog.find({ draft: false })
-    .populate("author", "personal_info.profile_img personal_info.username personal_info.fullname -_id")
-    .sort({ "activity.total_reads": -1, "activity.total_likes": -1, "publishedAt": -1 })
-    .select("blog_id title publishedAt -_id")
-    .limit(5)
+
+    Blog.aggregate([
+        // Match only published blogs
+        { $match: { draft: false } },
+
+        // Add calculated trending score field
+        {
+            $addFields: {
+                calculated_trending_score: {
+                    $divide: [
+                        // Engagement score
+                        {
+                            $add: [
+                                { $multiply: ["$activity.total_likes", 1] },
+                                { $multiply: ["$activity.total_comments", 3] },
+                                { $multiply: ["$activity.total_reads", 0.05] }
+                            ]
+                        },
+                        // Time decay
+                        {
+                            $pow: [
+                                {
+                                    $add: [
+                                        {
+                                            $divide: [
+                                                { $subtract: [new Date(), "$publishedAt"] },
+                                                3600000  // Convert to hours
+                                            ]
+                                        },
+                                        2
+                                    ]
+                                },
+                                1.8  // Gravity
+                            ]
+                        }
+                    ]
+                }
+            }
+        },
+
+        // Sort by trending score
+        { $sort: { calculated_trending_score: -1 } },
+
+        // Limit to top 5
+        { $limit: 5 },
+
+        // Lookup author information
+        {
+            $lookup: {
+                from: "users",
+                localField: "author",
+                foreignField: "_id",
+                as: "author"
+            }
+        },
+
+        // Unwind author array
+        { $unwind: "$author" },
+
+        // Select only needed fields
+        {
+            $project: {
+                _id: 0,
+                blog_id: 1,
+                title: 1,
+                publishedAt: 1,
+                "author.personal_info.profile_img": 1,
+                "author.personal_info.username": 1,
+                "author.personal_info.fullname": 1
+            }
+        }
+    ])
     .then(blogs => {
         return res.status(200).json({ blogs })
     })
     .catch(err => {
+        console.log(err);
         return res.status(500).json({ error: err.message })
     })
-    
+
 })
 
 // Search blogs
@@ -667,20 +756,23 @@ server.post("/add-comment", verifyJWT, (req, res) => {
         }
         
         if (replying_to) {
-            
+
             notificationObj.replied_on_comment = replying_to;
-            
+
             await Comment.findOneAndUpdate({ _id: replying_to }, { $push: { children: commentFile._id } })
             .then(replyingToCommentDoc => { notificationObj.notification_for = replyingToCommentDoc.commented_by })
-            
+
             if (notification_id) {
                 Notification.findOneAndUpdate({ _id: notification_id }, { reply: commentFile._id })
                 .then(notification => console.log('notification updated'))
             }
-            
+
         }
-        
-        new Notification(notificationObj).save().then(notification => console.log('new notification created'));
+
+        // Only create notification if the user is not notifying themselves
+        if (notificationObj.notification_for.toString() !== user_id.toString()) {
+            new Notification(notificationObj).save().then(notification => console.log('new notification created'));
+        }
         
         return res.status(200).json({
             comment, commentedAt, _id: commentFile._id, user_id, children
@@ -1048,10 +1140,11 @@ server.post("/notifications", verifyJWT, (req, res) => {
     .select("createdAt type seen reply comment replied_on_comment")
     .then(notifications => {
 
-        Notification.updateMany(findQuery, { seen: true })
-        .skip(skipDocs)
-        .limit(maxLimit)
-        .then(() => console.log('notification seen'));
+        // Mark fetched notifications as seen
+        let notificationIds = notifications.map(notification => notification._id);
+
+        Notification.updateMany({ _id: { $in: notificationIds } }, { seen: true })
+        .then(() => console.log('notifications marked as seen'));
 
         return res.status(200).json({ notifications });
     })
@@ -1077,6 +1170,40 @@ server.post("/all-notifications-count", verifyJWT, (req, res) => {
     Notification.countDocuments(findQuery)
     .then(count => {
         return res.status(200).json({ totalDocs: count });
+    })
+    .catch(err => {
+        return res.status(500).json({ error: err.message });
+    })
+
+});
+
+// Get unread notification count (USER only)
+server.get("/new-notification", verifyJWT, (req, res) => {
+
+    let user_id = req.user;
+
+    Notification.exists({ notification_for: user_id, seen: false, user: { $ne: user_id } })
+    .then(result => {
+        if (result) {
+            return res.status(200).json({ new_notification_available: true });
+        } else {
+            return res.status(200).json({ new_notification_available: false });
+        }
+    })
+    .catch(err => {
+        return res.status(500).json({ error: err.message });
+    })
+
+});
+
+// Get unread notification count number (USER only)
+server.get("/unread-notification-count", verifyJWT, (req, res) => {
+
+    let user_id = req.user;
+
+    Notification.countDocuments({ notification_for: user_id, seen: false })
+    .then(count => {
+        return res.status(200).json({ count });
     })
     .catch(err => {
         return res.status(500).json({ error: err.message });

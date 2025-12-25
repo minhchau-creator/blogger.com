@@ -58,6 +58,10 @@ const blogSchema = mongoose.Schema({
     draft: {
         type: Boolean,
         default: false
+    },
+    trending_score: {
+        type: Number,
+        default: 0
     }
 
 }, 

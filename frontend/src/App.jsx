@@ -17,21 +17,28 @@ import ManageBlogs from "./pages/manage-blogs.page";
 import UserProfilePage from "./pages/user-profile.page";
 
 export const UserContext = createContext({})
+export const NotificationRefreshContext = createContext({})
 
 const App = () => {
 
     const [userAuth, setUserAuth] = useState({});
+    const [notificationRefreshTrigger, setNotificationRefreshTrigger] = useState(0);
 
     useEffect(() => {
 
         let userInSession = lookInSession("user");
 
         userInSession ? setUserAuth(JSON.parse(userInSession)) : setUserAuth({ access_token: null })
-        
+
     }, [])
+
+    const refreshNotificationCount = () => {
+        setNotificationRefreshTrigger(prev => prev + 1);
+    }
 
     return (
         <UserContext.Provider value={{ userAuth, setUserAuth }}>
+        <NotificationRefreshContext.Provider value={{ notificationRefreshTrigger, refreshNotificationCount }}>
             <Routes>
                 <Route path="/editor" element={<Editor />} />
                 <Route path="/editor/:blog_id" element={<Editor />} />
@@ -54,6 +61,7 @@ const App = () => {
                     <Route path="*" element={<PageNotFound />} />
                 </Route>
             </Routes>
+        </NotificationRefreshContext.Provider>
         </UserContext.Provider>
     )
 }

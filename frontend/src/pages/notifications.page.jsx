@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import { UserContext } from "../App";
+import { UserContext, NotificationRefreshContext } from "../App";
 import axios from "axios";
 import { filterPaginationData } from "../common/filter-pagination-data";
 import Loader from "../components/loader.component";
@@ -11,6 +11,7 @@ import LoadMoreDataBtn from "../components/load-more.component";
 const Notifications = () => {
 
     let { userAuth, userAuth: { access_token, new_notification_available } } = useContext(UserContext);
+    let { refreshNotificationCount } = useContext(NotificationRefreshContext);
 
     const [filter, setFilter] = useState('all');
     const [notifications, setNotifications] = useState(null);
@@ -40,6 +41,11 @@ const Notifications = () => {
             })
 
             setNotifications(formatedData);
+
+            // Refresh the notification count in the navbar
+            if (refreshNotificationCount) {
+                refreshNotificationCount();
+            }
 
         })
         .catch(err => {
