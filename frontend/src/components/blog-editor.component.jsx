@@ -127,8 +127,12 @@ const BlogEditor = () => {
         if (textEditor.isReady) {
             textEditor.save().then(data => {
                 if (data.blocks.length) {
+                    // Update blog với content trước
                     setBlog({ ...blog, content: data });
-                    setEditorState("publish");
+                    // Chờ một chút để state update xong rồi mới chuyển sang publish
+                    setTimeout(() => {
+                        setEditorState("publish");
+                    }, 100);
                 } else {
                     return toast.error("Write something in your blog to publish it");
                 }

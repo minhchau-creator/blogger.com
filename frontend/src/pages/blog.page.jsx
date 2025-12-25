@@ -121,8 +121,8 @@ const BlogPage = () => {
 
                         <div className="my-12 font-gelasio blog-page-content">
                             {
-                                content && content[0] && content[0].blocks ? 
-                                content[0].blocks.map((block, i) => {
+                                content && content.blocks && content.blocks.length ? 
+                                content.blocks.map((block, i) => {
                                     return <div key={i} className="my-4 md:my-8">
                                         <BlogContent block={block} />
                                     </div>
