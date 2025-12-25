@@ -1,5 +1,5 @@
 import axios from "axios";
-import { createContext, useEffect, useState, useRef } from "react";
+import { createContext, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AnimationWrapper from "../common/page-animation";
 import Loader from "../components/loader.component";
@@ -30,52 +30,40 @@ const BlogPage = () => {
     const [ islikedByUser, setLikedByUser ] = useState(false);
     const [ commentsWrapper, setCommentsWrapper ] = useState(false);
     const [ totalParentCommentsLoaded, setTotalParentCommentsLoaded ] = useState(0);
-    
-    // Track nếu đã fetch blog cho blog_id này chưa
-    const hasFetchedRef = useRef(false);
-    const currentBlogIdRef = useRef(null);
 
     let { title, content, banner, author: { personal_info: { fullname, username: author_username, profile_img } }, publishedAt } = blog;
 
     const fetchBlog = () => {
 
+        console.log('fetchBlog called with blog_id:', blog_id);
+
         axios.post(import.meta.env.VITE_SERVER_DOMAIN + "/get-blog", { blog_id })
         .then( async ({ data: { blog } }) => {
+            console.log('Blog data received:', blog);
+            console.log('Blog MongoDB _id:', blog._id);
 
+            // Always use blog._id (ObjectId) for comment actions
             blog.comments = await fetchComments({ blog_id: blog._id, setParentCommentCountFun: setTotalParentCommentsLoaded })
 
-            setBlog(blog);
+            console.log('After fetchComments, blog.comments:', blog.comments);
 
+            setBlog(blog);
             axios.post(import.meta.env.VITE_SERVER_DOMAIN + "/search-blogs", { tag: blog.tags[0], limit: 6, eliminate_blog: blog_id })
             .then(({ data }) => {
                 setSimilarBlogs(data.blogs);
             })
-
             setLoading(false);
-
         })
         .catch(err => {
-            console.log(err);
+            console.log('Error in fetchBlog:', err);
             setLoading(false);
         })
 
     }
 
     useEffect(() => {
-
-        // Nếu blog_id thay đổi, reset flag
-        if (currentBlogIdRef.current !== blog_id) {
-            hasFetchedRef.current = false;
-            currentBlogIdRef.current = blog_id;
-        }
-
-        // Chỉ fetch nếu chưa fetch cho blog_id này
-        if (!hasFetchedRef.current) {
-            resetStates();
-            fetchBlog();
-            hasFetchedRef.current = true;
-        }
-
+        resetStates();
+        fetchBlog();
     }, [blog_id])
 
     const resetStates = () => {
@@ -93,7 +81,7 @@ const BlogPage = () => {
                 loading ? <Loader /> :
                 <BlogContext.Provider value={{ blog, setBlog, islikedByUser, setLikedByUser, commentsWrapper, setCommentsWrapper, totalParentCommentsLoaded, setTotalParentCommentsLoaded }}>
 
-                    <CommentsContainer />
+
 
                     <div className="max-w-[900px] center py-10 max-lg:px-[5vw]">
 
@@ -128,6 +116,12 @@ const BlogPage = () => {
                                     </div>
                                 }) : null
                             }
+                        </div>
+
+
+                        {/* Comments Section */}
+                        <div className="mt-16">
+                            <CommentsContainer />
                         </div>
 
                         <BlogInteraction />

@@ -6,6 +6,7 @@ import { BlogContext } from "../pages/blog.page";
 
 const CommentField = ({ action, index = undefined, replyingTo = undefined, setReplying }) => {
 
+    // Always use blog._id (ObjectId) for comment actions
     let { blog, blog: { _id, author: { _id: blog_author }, comments, comments: { results: commentsArr }, activity, activity: { total_comments, total_parent_comments } }, setBlog, setTotalParentCommentsLoaded } = useContext(BlogContext);
 
     let { userAuth: { access_token, username, fullname, profile_img } } = useContext(UserContext);
@@ -22,6 +23,7 @@ const CommentField = ({ action, index = undefined, replyingTo = undefined, setRe
             return toast.error("Write something to leave a comment...");
         }
 
+        // _id here is blog._id (ObjectId)
         axios.post(import.meta.env.VITE_SERVER_DOMAIN + "/add-comment", { _id, blog_author, comment, replying_to: replyingTo }, {
             headers: {
                 'Authorization': `Bearer ${access_token}`

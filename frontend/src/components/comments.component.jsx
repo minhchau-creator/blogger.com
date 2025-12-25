@@ -10,8 +10,13 @@ export const fetchComments = async ({ skip = 0, blog_id, setParentCommentCountFu
 
     let res;
 
+    console.log('fetchComments called with blog_id:', blog_id, 'skip:', skip);
+
+    // blog_id must be MongoDB _id (ObjectId)
     await axios.post(import.meta.env.VITE_SERVER_DOMAIN + "/get-blog-comments", { blog_id, skip })
     .then(({ data }) => {
+
+        console.log('Received comments from API:', data);
 
         data.map(comment => {
             comment.childrenLevel = 0;
@@ -25,6 +30,12 @@ export const fetchComments = async ({ skip = 0, blog_id, setParentCommentCountFu
             res = { results: [ ...comment_array, ...data ] }
         }
 
+        console.log('fetchComments returning:', res);
+
+    })
+    .catch(err => {
+        console.error('Error fetching comments:', err);
+        res = { results: [] };
     })
 
     return res;
@@ -33,55 +44,50 @@ export const fetchComments = async ({ skip = 0, blog_id, setParentCommentCountFu
 
 const CommentsContainer = () => {
 
-    let { blog, blog: { _id, title, comments: { results: commentsArr }, activity: { total_parent_comments } }, commentsWrapper, setCommentsWrapper, totalParentCommentsLoaded, setTotalParentCommentsLoaded, setBlog } = useContext(BlogContext);
+    let { blog, blog: { _id, title, comments, activity: { total_parent_comments } }, commentsWrapper, setCommentsWrapper, totalParentCommentsLoaded, setTotalParentCommentsLoaded, setBlog } = useContext(BlogContext);
+
+    // Debug logs
+    console.log('=== COMMENTS DEBUG ===');
+    console.log('blog._id:', _id);
+    console.log('comments object:', comments);
+    console.log('total_parent_comments:', total_parent_comments);
+    console.log('totalParentCommentsLoaded:', totalParentCommentsLoaded);
+
+    // Đảm bảo commentsArr luôn là mảng
+    const commentsArr = (comments && Array.isArray(comments.results)) ? comments.results : [];
+    console.log('commentsArr length:', commentsArr.length);
+    console.log('commentsArr:', commentsArr);
 
     const loadMoreComments = async () => {
 
+        // Always use _id (ObjectId) for blog_id
         let newCommentsArr = await fetchComments({ skip: totalParentCommentsLoaded, blog_id: _id, setParentCommentCountFun: setTotalParentCommentsLoaded, comment_array: commentsArr })
-
         setBlog({ ...blog, comments: newCommentsArr })
 
     }
 
     return (
-        <div className={"max-sm:w-full fixed " + ( commentsWrapper ? "top-0 sm:right-0" : "top-[100%] sm:right-[-100%]" ) + " duration-700 max-sm:right-0 sm:top-0 w-[30%] min-w-[350px] h-full z-50 bg-white shadow-2xl p-8 px-16 overflow-y-auto overflow-x-hidden"}>
-
-            <div className="relative">
-
-                <h1 className="text-xl font-medium">Comments</h1>
-                <p className="text-lg mt-2 w-[70%] text-dark-grey line-clamp-1">{title}</p>
-
-                <button 
-                    onClick={() => setCommentsWrapper(preVal => !preVal)}
-                    className="absolute top-0 right-0 flex justify-center items-center w-12 h-12 rounded-full bg-grey"
-                >
-                    <i className="fi fi-br-cross text-2xl mt-1"></i>
-                </button>
-
-            </div>
-
-            <hr className="border-grey my-8 w-[120%] -ml-10" />
-
+        <div className="w-full max-w-2xl mx-auto bg-white rounded-xl shadow p-6 mt-8">
+            <h1 className="text-xl font-bold mb-4">Comments</h1>
             <CommentField action="comment" />
-
-            {
-                commentsArr && commentsArr.length ?
-                    commentsArr.map((comment, i) => {
-                        return <AnimationWrapper key={i}>
-                            <CommentCard index={i} leftVal={comment.childrenLevel * 4} commentData={comment} />
-                        </AnimationWrapper>
-                    })
-                : <NoDataMessage message="No Comments" />
-            }
-
+            <div className="mt-8">
+                {
+                    Array.isArray(commentsArr) && commentsArr.length ?
+                        commentsArr.map((comment, i) => {
+                            return <AnimationWrapper key={i}>
+                                <CommentCard index={i} leftVal={comment.childrenLevel * 4} commentData={comment} />
+                            </AnimationWrapper>
+                        })
+                    : <NoDataMessage message="No Comments" />
+                }
+            </div>
             {
                 total_parent_comments > totalParentCommentsLoaded ?
                 <button 
                     onClick={loadMoreComments}
-                    className="text-dark-grey p-2 px-3 hover:bg-grey/30 rounded-md flex items-center gap-2"
+                    className="text-dark-grey p-2 px-3 hover:bg-grey/30 rounded-md flex items-center gap-2 mt-4"
                 >Load More</button> : ""
             }
-
         </div>
     )
 }

@@ -8,7 +8,7 @@ import axios from "axios";
 
 const CommentCard = ({ index, leftVal, commentData }) => {
 
-    let { commented_by: { personal_info: { profile_img, fullname, username: commented_by_username } }, commentedAt, comment, _id, children } = commentData;
+    let { commented_by: { personal_info: { profile_img, fullname, username: commented_by_username } }, commentedAt, comment, _id, children, isDeleted } = commentData;
 
     let { blog, blog: { comments, activity, activity: { total_parent_comments }, comments: { results: commentsArr }, author: { personal_info: { username: blog_author } } }, setBlog, setTotalParentCommentsLoaded } = useContext(BlogContext);
 
@@ -115,11 +115,17 @@ const CommentCard = ({ index, leftVal, commentData }) => {
 
             e.target.removeAttribute("disabled");
 
-            removeCommentsCards(index + 1, true);
+            // Soft delete: cập nhật comment trong state thay vì xóa
+            commentData.isDeleted = true;
+            commentData.comment = "Comment này đã bị xóa";
+
+            // Force re-render bằng cách update lại state
+            setBlog({ ...blog, comments: { ...comments, results: [...commentsArr] } });
 
         })
         .catch(err => {
             console.log(err);
+            e.target.removeAttribute("disabled");
         })
 
     }
@@ -156,45 +162,73 @@ const CommentCard = ({ index, leftVal, commentData }) => {
 
             <div className="my-5 p-6 rounded-md border border-grey">
 
-                <div className="flex gap-3 items-center mb-8">
-
-                    <img src={profile_img} className="w-6 h-6 rounded-full" />
-
-                    <p className="line-clamp-1">{fullname} @{commented_by_username}</p>
-                    <p className="min-w-fit">{getDay(commentedAt)}</p>
-
+                {/* Header with time */}
+                <div className="flex justify-between items-start mb-3">
+                    <div className="flex gap-3 items-center flex-1">
+                        <img src={profile_img} className="w-6 h-6 rounded-full" />
+                        <p className="line-clamp-1">{fullname} @{commented_by_username}</p>
+                    </div>
+                    <p className="text-dark-grey text-sm min-w-fit ml-3">{getDay(commentedAt)}</p>
                 </div>
 
-                <p className="font-gelasio text-xl ml-3">{comment}</p>
+                {/* Comment content */}
+                <p className={`font-gelasio text-xl ml-9 ${isDeleted ? 'text-dark-grey/50 italic' : ''}`}>{comment}</p>
 
                 <div className="flex gap-5 items-center mt-5">
 
                     {
-                        commentData.isReplyLoaded ?
-                        <button 
-                            className="text-dark-grey p-2 px-3 hover:bg-grey/30 rounded-md flex items-center gap-2"
-                            onClick={hideReplies}
-                        >
-                            <i className="fi fi-rs-comment-dots"></i>
-                            Hide Reply
-                        </button>
-                        :
-                        <button 
-                            className="text-dark-grey p-2 px-3 hover:bg-grey/30 rounded-md flex items-center gap-2"
-                            onClick={loadReplies}
-                        >
-                            <i className="fi fi-rs-comment-dots"></i>
-                            {children.length} Reply
-                        </button>
+                        !isDeleted && (
+                            <>
+                                {
+                                    commentData.isReplyLoaded ?
+                                    <button
+                                        className="text-dark-grey p-2 px-3 hover:bg-grey/30 rounded-md flex items-center gap-2"
+                                        onClick={hideReplies}
+                                    >
+                                        <i className="fi fi-rs-comment-dots"></i>
+                                        Hide Reply
+                                    </button>
+                                    :
+                                    <button
+                                        className="text-dark-grey p-2 px-3 hover:bg-grey/30 rounded-md flex items-center gap-2"
+                                        onClick={loadReplies}
+                                    >
+                                        <i className="fi fi-rs-comment-dots"></i>
+                                        {children.length} Reply
+                                    </button>
+                                }
+
+                                <button className="underline" onClick={() => setReplying(preVal => !preVal)}>Reply</button>
+
+                                {
+                                    username == commented_by_username || username == blog_author ?
+                                    <button className="p-2 px-3 rounded-md border border-grey ml-auto hover:bg-red/30 hover:text-red flex items-center" onClick={deleteComment}>
+                                        <i className="fi fi-rr-trash pointer-events-none"></i>
+                                    </button> : ""
+                                }
+                            </>
+                        )
                     }
 
-                    <button className="underline" onClick={() => setReplying(preVal => !preVal)}>Reply</button>
-
                     {
-                        username == commented_by_username || username == blog_author ?
-                        <button className="p-2 px-3 rounded-md border border-grey ml-auto hover:bg-red/30 hover:text-red flex items-center" onClick={deleteComment}>
-                            <i className="fi fi-rr-trash pointer-events-none"></i>
-                        </button> : ""
+                        isDeleted && children && children.length > 0 && (
+                            commentData.isReplyLoaded ?
+                            <button
+                                className="text-dark-grey p-2 px-3 hover:bg-grey/30 rounded-md flex items-center gap-2"
+                                onClick={hideReplies}
+                            >
+                                <i className="fi fi-rs-comment-dots"></i>
+                                Hide Reply
+                            </button>
+                            :
+                            <button
+                                className="text-dark-grey p-2 px-3 hover:bg-grey/30 rounded-md flex items-center gap-2"
+                                onClick={loadReplies}
+                            >
+                                <i className="fi fi-rs-comment-dots"></i>
+                                {children.length} Reply
+                            </button>
+                        )
                     }
 
                 </div>

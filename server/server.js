@@ -692,26 +692,31 @@ server.post("/add-comment", verifyJWT, (req, res) => {
 
 // Get blog comments
 server.post("/get-blog-comments", (req, res) => {
-    
+
     let { blog_id, skip } = req.body;
-    
-    let maxLimit = 5;
-    
-    Comment.find({ blog_id, isReply: false })
+
+    console.log('get-blog-comments API called with blog_id:', blog_id, 'skip:', skip);
+
+    let maxLimit = 10;
+
+    // Find parent comments (where isReply is NOT true)
+    // Use $ne: true to match both false and undefined/null
+    Comment.find({ blog_id, isReply: { $ne: true } })
     .populate("commented_by", "personal_info.username personal_info.fullname personal_info.profile_img")
     .skip(skip)
     .limit(maxLimit)
     .sort({
         'commentedAt': -1
     })
-    .then(comment => {
-        return res.status(200).json(comment);
+    .then(comments => {
+        console.log('Found parent comments:', comments.length);
+        return res.status(200).json(comments);
     })
     .catch(err => {
-        console.log(err.message);
+        console.log('Error in get-blog-comments:', err.message);
         return res.status(500).json({ error: err.message })
     })
-    
+
 })
 
 // Get replies
@@ -745,58 +750,40 @@ server.post("/get-replies", (req, res) => {
     
 })
 
-// Delete comment (USER only - own comments)
-const deleteComments = ( _id ) => {
-    
-    Comment.findOneAndDelete({ _id })
-    .then(comment => {
-        
-        if (comment.parent) {
-            Comment.findOneAndUpdate({ _id: comment.parent }, { $pull: { children: _id } })
-            .then(data => console.log('comment delete from parent'))
-            .catch(err => console.log(err));
-        }
-        
-        Notification.findOneAndDelete({ comment: _id }).then(notification => console.log('comment notification deleted'))
-        
-        Notification.findOneAndDelete({ reply: _id }).then(notification => console.log('reply notification deleted'))
-        
-        Blog.findOneAndUpdate({ _id: comment.blog_id }, { $pull: { comments: _id }, $inc: { "activity.total_comments": -1 }, "activity.total_parent_comments": comment.parent ? 0 : -1 })
-        .then(blog => {
-            if (comment.children.length) {
-                comment.children.map(replies => {
-                    deleteComments(replies)
-                })
-            }
-        })
-        
-    })
-    .catch(err => {
-        console.log(err.message);
-    })
-}
-
+// Soft delete comment (USER only - own comments)
 server.post("/delete-comment", verifyJWT, (req, res) => {
-    
+
     let user_id = req.user;
-    
+
     let { _id } = req.body;
-    
+
     Comment.findOne({ _id })
     .then(comment => {
-        
+
         if ( user_id == comment.commented_by || user_id == comment.blog_author ) {
-            
-            deleteComments(_id)
-            
-            return res.status(200).json({ status: 'done' });
-            
+
+            // Soft delete: chỉ đánh dấu isDeleted = true, không xóa khỏi database
+            Comment.findOneAndUpdate({ _id }, {
+                isDeleted: true,
+                comment: "Comment này đã bị xóa"
+            })
+            .then(() => {
+                console.log('Comment soft deleted');
+                return res.status(200).json({ status: 'done' });
+            })
+            .catch(err => {
+                return res.status(500).json({ error: err.message });
+            })
+
         } else {
             return res.status(403).json({ error: "You can not delete this comment" })
         }
-        
+
     })
-    
+    .catch(err => {
+        return res.status(500).json({ error: err.message });
+    })
+
 })
 
 // Get user written blogs (USER only - own blogs including drafts)
@@ -1024,32 +1011,105 @@ server.post("/change-password", verifyJWT, async (req, res) => {
     
 });
 
+// Get notifications (USER only)
+server.post("/notifications", verifyJWT, (req, res) => {
+
+    let user_id = req.user;
+    let { page, filter, deletedDocCount } = req.body;
+
+    let maxLimit = 10;
+    let findQuery = { notification_for: user_id };
+    let skipDocs = (page - 1) * maxLimit;
+
+    if (filter != 'all') {
+        findQuery.type = filter;
+    }
+
+    if (deletedDocCount) {
+        skipDocs -= deletedDocCount;
+    }
+
+    Notification.find(findQuery)
+    .skip(skipDocs)
+    .limit(maxLimit)
+    .populate("blog", "title blog_id author")
+    .populate("user", "personal_info.fullname personal_info.username personal_info.profile_img")
+    .populate("comment", "comment")
+    .populate("replied_on_comment", "comment")
+    .populate("reply", "comment")
+    .populate({
+        path: "blog",
+        populate: {
+            path: "author",
+            select: "personal_info.username"
+        }
+    })
+    .sort({ createdAt: -1 })
+    .select("createdAt type seen reply comment replied_on_comment")
+    .then(notifications => {
+
+        Notification.updateMany(findQuery, { seen: true })
+        .skip(skipDocs)
+        .limit(maxLimit)
+        .then(() => console.log('notification seen'));
+
+        return res.status(200).json({ notifications });
+    })
+    .catch(err => {
+        console.log(err.message);
+        return res.status(500).json({ error: err.message });
+    })
+
+});
+
+// Get notification count (USER only)
+server.post("/all-notifications-count", verifyJWT, (req, res) => {
+
+    let user_id = req.user;
+    let { filter } = req.body;
+
+    let findQuery = { notification_for: user_id };
+
+    if (filter != 'all') {
+        findQuery.type = filter;
+    }
+
+    Notification.countDocuments(findQuery)
+    .then(count => {
+        return res.status(200).json({ totalDocs: count });
+    })
+    .catch(err => {
+        return res.status(500).json({ error: err.message });
+    })
+
+});
+
 // Update notification settings (USER only)
 server.post("/update-notification-settings", verifyJWT, (req, res) => {
-    
+
     let user_id = req.user;
     let { all, comments, likes, replies } = req.body;
-    
+
     // Prepare update object
     let updateObj = {};
-    
+
     if (all !== undefined) updateObj["notification_settings.all"] = all;
     if (comments !== undefined) updateObj["notification_settings.comments"] = comments;
     if (likes !== undefined) updateObj["notification_settings.likes"] = likes;
     if (replies !== undefined) updateObj["notification_settings.replies"] = replies;
-    
+
     User.findByIdAndUpdate(user_id, updateObj, { new: true })
     .select("notification_settings")
     .then(user => {
-        return res.status(200).json({ 
+        return res.status(200).json({
             notification_settings: user.notification_settings,
-            message: "Notification settings updated successfully" 
+            message: "Notification settings updated successfully"
         });
     })
     .catch(err => {
         return res.status(500).json({ error: err.message });
     });
-    
+
 });
 
 // ============= BLOG API ROUTES =============

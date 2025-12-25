@@ -31,6 +31,10 @@ const commentSchema = mongoose.Schema({
     parent: {
         type: Schema.Types.ObjectId,
         ref: 'comments'
+    },
+    isDeleted: {
+        type: Boolean,
+        default: false
     }
 
 },
