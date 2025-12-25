@@ -1,29 +1,20 @@
-import { useState, useContext } from "react";
+import { useContext } from "react";
 import { Link } from "react-router-dom";
 import { getDay } from "../common/date";
-import NotificationCommentField from "./notification-comment-field.component";
 import { UserContext } from "../App";
 
 const NotificationCard = ({ data, index, notificationState }) => {
 
-    let [ isReplying, setReplying ] = useState(false);
-
     let { seen, type, reply, createdAt, comment, replied_on_comment, user, blog, _id: notification_id } = data;
 
-    let { userAuth: { username: author_username, profile_img: author_profile_img, access_token } } = useContext(UserContext);
-
-    let { notifications, notifications: { results }, setNotifications } = notificationState;
+    let { userAuth: { username: author_username, profile_img: author_profile_img } } = useContext(UserContext);
 
     // Safely extract blog data
     if (!blog || !blog.author) {
         return null;
     }
 
-    let { _id: blog_mongo_id, blog_id, title, author: { personal_info: { username: blog_author_username } } } = blog;
-
-    const handleReplyClick = () => {
-        setReplying(preVal => !preVal);
-    }
+    let { blog_id, title } = blog;
 
     return (
         <div className={"p-6 border-b border-grey border-l-black " + (!seen ? " border-l-2 " : " ")}>
@@ -72,28 +63,13 @@ const NotificationCard = ({ data, index, notificationState }) => {
                     <p className="font-gelasio">{comment.comment}</p>
 
                     <div className="flex gap-5 mt-3">
-                        <button
+                        <Link
+                            to={`/blog/${blog_id}`}
                             className="underline hover:text-black"
-                            onClick={handleReplyClick}
                         >
-                            Reply
-                        </button>
+                            View Post
+                        </Link>
                     </div>
-
-                    {
-                        isReplying ?
-                        <div className="mt-5">
-                            <NotificationCommentField
-                                _id={blog_mongo_id}
-                                blog_author={blog_author_username}
-                                index={index}
-                                replyingTo={comment._id}
-                                setReplying={setReplying}
-                                notification_id={notification_id}
-                                notificationData={notificationState}
-                            />
-                        </div> : ""
-                    }
 
                     {
                         reply ?
