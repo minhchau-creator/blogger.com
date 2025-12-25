@@ -8,13 +8,8 @@ This Tool for the [Editor.js](https://editorjs.io) allows you to add ordered or 
 
 ## Installation
 
-### Install via NPM
-
 Get the package
 
-```shell
-npm i --save @editorjs/list
-```
 ```shell
 yarn add @editorjs/list
 ```
@@ -22,21 +17,10 @@ yarn add @editorjs/list
 Include module at your application
 
 ```javascript
-import List from '@editorjs/list';
+import List from "@editorjs/list";
 ```
 
-### Download to your project's source dir
-
-1. Upload folder `dist` from repository
-2. Add `dist/bundle.js` file to your page.
-
-### Load from CDN
-
-Load the script from [jsDelivr CDN](https://www.jsdelivr.com/package/npm/@editorjs/list) and connect to your page.
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
-```
+Optionally, you can load this tool from CDN [JsDelivr CDN](https://cdn.jsdelivr.net/npm/@editorjs/list@latest)
 
 ## Usage
 
@@ -63,8 +47,8 @@ var editor = EditorJS({
 
 ## Config Params
 
-| Field       | Type     | Description                 |
-| ----------- | -------- | --------------------------- |
+| Field        | Type     | Description                                                    |
+| ------------ | -------- | -------------------------------------------------------------- |
 | defaultStyle | `string` | type of a list: `ordered` or `unordered`, default is `ordered` |
 
 ## Tool's settings
@@ -75,11 +59,10 @@ You can choose list`s type.
 
 ## Output data
 
-| Field | Type       | Description                            |
-| ----- | ---------- | -------------------------------------- |
+| Field | Type       | Description                              |
+| ----- | ---------- | ---------------------------------------- |
 | style | `string`   | type of a list: `ordered` or `unordered` |
-| items | `string[]` | the array of list's items              |
-
+| items | `string[]` | the array of list's items                |
 
 ```json
 {

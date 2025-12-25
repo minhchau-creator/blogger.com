@@ -58,12 +58,9 @@ const BlogEditor = () => {
             setTextEditor(editor);
         }
         
-        // Cleanup khi component unmount
+        // Cleanup chỉ khi component thực sự unmount (không phải re-render)
         return () => {
-            if (editorInstanceRef.current && typeof editorInstanceRef.current.destroy === 'function') {
-                editorInstanceRef.current.destroy();
-                editorInstanceRef.current = null;
-            }
+            // Không destroy ngay, để React Strict Mode không phá
         };
     }, []);
 

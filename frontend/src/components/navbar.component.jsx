@@ -35,7 +35,7 @@ const Navbar = () => {
 
     return (
         <>
-        <nav className="navbar">
+        <nav className="navbar z-50 sticky top-0">
 
             <Link to="/" className="flex-none w-10">
                 <img src={logo} className="w-full" />
