@@ -1104,130 +1104,76 @@ server.post("/change-password", verifyJWT, async (req, res) => {
 });
 
 // Get notifications (USER only)
-server.post("/notifications", verifyJWT, async (req, res) => {
+server.post("/notifications", verifyJWT, (req, res) => {
 
     let user_id = req.user;
     let { page, filter, deletedDocCount } = req.body;
 
-    try {
-        // Get user's notification settings
-        const user = await User.findById(user_id).select('notification_settings');
+    let maxLimit = 10;
+    let findQuery = { notification_for: user_id };
+    let skipDocs = (page - 1) * maxLimit;
 
-        if (!user) {
-            return res.status(404).json({ error: "User not found" });
+    if (filter != 'all') {
+        findQuery.type = filter;
+    }
+
+    if (deletedDocCount) {
+        skipDocs -= deletedDocCount;
+    }
+
+    Notification.find(findQuery)
+    .skip(skipDocs)
+    .limit(maxLimit)
+    .populate("blog", "title blog_id author")
+    .populate("user", "personal_info.fullname personal_info.username personal_info.profile_img")
+    .populate("comment", "comment")
+    .populate("replied_on_comment", "comment")
+    .populate("reply", "comment")
+    .populate({
+        path: "blog",
+        populate: {
+            path: "author",
+            select: "personal_info.username"
         }
-
-        let maxLimit = 10;
-        let findQuery = { notification_for: user_id };
-        let skipDocs = (page - 1) * maxLimit;
-
-        // Build enabled types based on settings (ignore 'all', only check individual settings)
-        let enabledTypes = [];
-        if (user.notification_settings.likes) enabledTypes.push("like");
-        if (user.notification_settings.comments) enabledTypes.push("comment");
-        if (user.notification_settings.replies) enabledTypes.push("reply");
-
-        // If no types are enabled, return empty array
-        if (enabledTypes.length === 0) {
-            return res.status(200).json({ notifications: [] });
-        }
-
-        // Apply filter
-        if (filter != 'all') {
-            // Only show filtered type if it's enabled
-            if (enabledTypes.includes(filter)) {
-                findQuery.type = filter;
-            } else {
-                return res.status(200).json({ notifications: [] });
-            }
-        } else {
-            // Show only enabled types
-            findQuery.type = { $in: enabledTypes };
-        }
-
-        if (deletedDocCount) {
-            skipDocs -= deletedDocCount;
-        }
-
-        const notifications = await Notification.find(findQuery)
-            .skip(skipDocs)
-            .limit(maxLimit)
-            .populate("blog", "title blog_id author")
-            .populate("user", "personal_info.fullname personal_info.username personal_info.profile_img")
-            .populate("comment", "comment")
-            .populate("replied_on_comment", "comment")
-            .populate("reply", "comment")
-            .populate({
-                path: "blog",
-                populate: {
-                    path: "author",
-                    select: "personal_info.username"
-                }
-            })
-            .sort({ createdAt: -1 })
-            .select("createdAt type seen reply comment replied_on_comment");
+    })
+    .sort({ createdAt: -1 })
+    .select("createdAt type seen reply comment replied_on_comment")
+    .then(notifications => {
 
         // Mark fetched notifications as seen
         let notificationIds = notifications.map(notification => notification._id);
 
-        await Notification.updateMany({ _id: { $in: notificationIds } }, { seen: true });
-        console.log('notifications marked as seen');
+        Notification.updateMany({ _id: { $in: notificationIds } }, { seen: true })
+        .then(() => console.log('notifications marked as seen'));
 
         return res.status(200).json({ notifications });
-
-    } catch (err) {
+    })
+    .catch(err => {
         console.log(err.message);
         return res.status(500).json({ error: err.message });
-    }
+    })
 
 });
 
 // Get notification count (USER only)
-server.post("/all-notifications-count", verifyJWT, async (req, res) => {
+server.post("/all-notifications-count", verifyJWT, (req, res) => {
 
     let user_id = req.user;
     let { filter } = req.body;
 
-    try {
-        // Get user's notification settings
-        const user = await User.findById(user_id).select('notification_settings');
+    let findQuery = { notification_for: user_id };
 
-        if (!user) {
-            return res.status(404).json({ error: "User not found" });
-        }
-
-        let findQuery = { notification_for: user_id };
-
-        // Build enabled types based on settings (ignore 'all', only check individual settings)
-        let enabledTypes = [];
-        if (user.notification_settings.likes) enabledTypes.push("like");
-        if (user.notification_settings.comments) enabledTypes.push("comment");
-        if (user.notification_settings.replies) enabledTypes.push("reply");
-
-        // If no types are enabled, return 0
-        if (enabledTypes.length === 0) {
-            return res.status(200).json({ totalDocs: 0 });
-        }
-
-        // Apply filter
-        if (filter != 'all') {
-            // Only count filtered type if it's enabled
-            if (enabledTypes.includes(filter)) {
-                findQuery.type = filter;
-            } else {
-                return res.status(200).json({ totalDocs: 0 });
-            }
-        } else {
-            // Count only enabled types
-            findQuery.type = { $in: enabledTypes };
-        }
-
-        const count = await Notification.countDocuments(findQuery);
-        return res.status(200).json({ totalDocs: count });
-
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
+    if (filter != 'all') {
+        findQuery.type = filter;
     }
+
+    Notification.countDocuments(findQuery)
+    .then(count => {
+        return res.status(200).json({ totalDocs: count });
+    })
+    .catch(err => {
+        return res.status(500).json({ error: err.message });
+    })
 
 });
 
