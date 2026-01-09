@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 package-lock.json
+frontend/node_modules/
+server/node_modules/
 
 # Environment variables
 .env
@@ -8,15 +10,32 @@ package-lock.json
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 
 # Uploads (user-generated content)
 mern-blogging-website/server/uploads/
+uploads/
+server/uploads/
 
 # Build outputs
 dist/
 build/
 .next/
 out/
+frontend/dist/
+frontend/build/
+server/dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
@@ -25,20 +44,13 @@ out/
 *.swo
 *~
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-logs/
-*.log
-
 # Testing
 coverage/
 
 # Misc
 *.pem
 .vercel
+
+# Vite
+frontend/.vite/
+.vite/
