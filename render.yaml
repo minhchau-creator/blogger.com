@@ -38,10 +38,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: VITE_SERVER_DOMAIN
-        fromService:
-          type: web
-          name: blogger-backend
-          property: url
+        sync: false
 
 databases:
   - name: blogger-mongodb
