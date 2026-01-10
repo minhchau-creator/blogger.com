@@ -4,13 +4,19 @@ package-lock.json
 frontend/node_modules/
 server/node_modules/
 
-# Environment variables
+# Environment variables - CRITICAL: Never commit these files!
 .env
+.env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env.production
+server/.env
+frontend/.env
+mern-blogging-website/server/.env
+mern-blogging-website/frontend/.env
 
 # Uploads (user-generated content)
 mern-blogging-website/server/uploads/
