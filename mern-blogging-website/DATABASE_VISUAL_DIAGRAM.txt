@@ -1,0 +1,386 @@
+===============================================================================
+                MERN BLOGGING WEBSITE - DATABASE ARCHITECTURE
+===============================================================================
+
+-------------------------------------------------------------------------
+                     ENTITY RELATIONSHIP DIAGRAM
+-------------------------------------------------------------------------
+
++-------------------+
+|      USERS        | (Collection: users)
++-------------------+
+| _id (PK)          |
+| personal_info:    |
+|   - fullname      |
+|   - email (UK)    |----------+
+|   - password      |          | Auth
+|   - username (UK) |          |
+|   - bio           |          |
+|   - profile_img   |          |
+| social_links:     |          |
+|   - youtube       |          |
+|   - instagram     |          |
+|   - facebook      |          |
+|   - twitter       |          |
+|   - github        |          |
+|   - website       |          |
+| account_info:     |          |
+|   - total_posts   |          |
+|   - total_reads   |          |
+| notification_...  |          |
+| google_auth       |          |
+| blogs[]           |--+       |
+| joinedAt          |  |       |
++-------------------+  |       |
+         |             |       |
+         | creates     |       |
+         v             |       |
++-------------------+  |       |
+|      BLOGS        |<-+       |
++-------------------+          |
+| _id (PK)          |          |
+| blog_id (UK)      |          |
+| title             |          |
+| banner            |          |
+| des               |          |
+| content (Mixed)   |          |
+| tags[]            |          |
+| author (FK)       |----------+
+| activity:         |
+|   - total_likes   |---+
+|   - total_comments|   | Trending
+|   - total_reads   |---+ Algorithm
+|   - total_parent..|   |
+| comments[]        |<--+---+
+| draft             |   |   |
+| trending_score    |<--+   |
+| publishedAt       |       |
++-------------------+       |
+         |                  |
+         | contains         |
+         v                  |
++-------------------+       |
+|     COMMENTS      |-------+
++-------------------+
+| _id (PK)          |
+| blog_id (FK)      |---+
+| blog_author (FK)  |   |
+| comment           |   |
+| commented_by (FK) |---+------+
+| children[] (FK)   |<--+      |
+| isReply           |   |      |
+| parent (FK)       |---+      |
+| isDeleted         |          |
+| commentedAt       |          |
++-------------------+          |
+         |                     |
+         | creates             |
+         v                     |
++-------------------+          |
+|   NOTIFICATIONS   |          |
++-------------------+          |
+| _id (PK)          |          |
+| type (enum)       |          |
+| blog (FK)         |          |
+| notification_for  |----------+
+| user (FK)         |----------+
+| comment (FK)      |          |
+| reply (FK)        |          |
+| replied_on_...    |          |
+| seen              |          |
+| createdAt         |          |
+| updatedAt         |          |
++-------------------+          |
+         |                     |
+         +---------------------+
+
+
+-------------------------------------------------------------------------
+                    COMMENT TREE STRUCTURE EXAMPLE
+-------------------------------------------------------------------------
+
++--------------------------------------------------------------------------+
+| Blog: "Understanding JavaScript Closures"                                |
++--------------------------------------------------------------------------+
+|                                                                          |
+|  Comment #1 (parent)                                                    |
+|     User: john_doe                                                      |
+|     Text: "Great explanation!"                                          |
+|     isReply: false                                                      |
+|     children: [Comment #2, Comment #3]                                  |
+|     |                                                                   |
+|     +---> Reply #2 (child)                                             |
+|     |    User: jane_smith                                               |
+|     |    Text: "I agree, very clear"                                    |
+|     |    isReply: true                                                  |
+|     |    parent: Comment #1                                             |
+|     |    children: [Comment #4]                                         |
+|     |    |                                                              |
+|     |    +---> Reply #4 (grandchild)                                   |
+|     |         User: mike_wilson                                         |
+|     |         Text: "Thanks for sharing!"                               |
+|     |         isReply: true                                             |
+|     |         parent: Comment #2                                        |
+|     |         children: []                                              |
+|     |                                                                   |
+|     +---> Reply #3 (child)                                             |
+|          User: sarah_lee                                                |
+|          Text: "Can you explain more?"                                  |
+|          isReply: true                                                  |
+|          parent: Comment #1                                             |
+|          children: []                                                   |
+|                                                                          |
+|  Comment #5 (parent)                                                    |
+|     User: bob_johnson                                                   |
+|     Text: "I have a question..."                                        |
+|     isReply: false                                                      |
+|     children: []                                                        |
+|                                                                          |
++--------------------------------------------------------------------------+
+
+
+-------------------------------------------------------------------------
+                       NOTIFICATION FLOW DIAGRAM
+-------------------------------------------------------------------------
+
+SCENARIO 1: User likes a blog
+------------------------------
+   User A                    Blog (by User B)              Notification
+     |                              |                            |
+     |---- Like Blog ------------->|                            |
+     |                              |                            |
+     |                              |---- Create Notification -->|
+     |                              |    type: "like"            |
+     |                              |    user: User A            |
+     |                              |    notification_for: B     |
+     |                              |    seen: false             |
+     |                              |                            |
+     |                              |                            v
+     |                              |                    +---------------+
+     |                              |                    | User B gets   |
+     |                              |                    | notification  |
+     |                              |                    |  badge: +1    |
+     |                              |                    +---------------+
+
+
+SCENARIO 2: User comments on a blog
+------------------------------------
+   User A                    Blog (by User B)              Notification
+     |                              |                            |
+     |--- Add Comment ------------->|                            |
+     |                              |                            |
+     |                              +--- Save to comments[] ---->+
+     |                              |                            |
+     |                              |                            |
+     |                              |---- Create Notification -->|
+     |                              |    type: "comment"         |
+     |                              |    comment: Comment._id    |
+     |                              |    user: User A            |
+     |                              |    notification_for: B     |
+     |                              |                            |
+
+
+SCENARIO 3: User replies to a comment
+--------------------------------------
+   User C          Comment (by User A)      Blog (by User B)    Notification
+     |                      |                      |                  |
+     |--- Add Reply ------->|                      |                  |
+     |                      |                      |                  |
+     |                      +- Add to children[]   |                  |
+     |                      |                      |                  |
+     |                      |                      |                  |
+     |                      |----------------------+- Create Notif -->|
+     |                      |                      |   type: "reply"  |
+     |                      |                      |   user: User C   |
+     |                      |                      |   notification_  |
+     |                      |                      |   for: User A    |
+     |                      |                      |   replied_on_... |
+
+
+-------------------------------------------------------------------------
+                     TRENDING SCORE CALCULATION
+-------------------------------------------------------------------------
+
+Formula:
+========
+                    (likes x 1) + (comments x 3) + (reads x 0.05)
+  trending_score = -----------------------------------------------
+                              (age_in_hours + 2)^1.8
+
+
+Example Calculation:
+====================
+
+Blog A (Published 2 hours ago):
+  - 10 likes
+  - 5 comments
+  - 50 reads
+
+  Engagement = (10 x 1) + (5 x 3) + (50 x 0.05) = 10 + 15 + 2.5 = 27.5
+  Time Decay = (2 + 2)^1.8 = 4^1.8 = 10.56
+  Score = 27.5 / 10.56 = 2.60
+
+
+Blog B (Published 24 hours ago):
+  - 100 likes
+  - 20 comments
+  - 500 reads
+
+  Engagement = (100 x 1) + (20 x 3) + (500 x 0.05) = 100 + 60 + 25 = 185
+  Time Decay = (24 + 2)^1.8 = 26^1.8 = 258.4
+  Score = 185 / 258.4 = 0.72
+
+
+Blog C (Published 168 hours ago / 7 days):
+  - 500 likes
+  - 100 comments
+  - 2000 reads
+
+  Engagement = (500 x 1) + (100 x 3) + (2000 x 0.05) = 500 + 300 + 100 = 900
+  Time Decay = (168 + 2)^1.8 = 170^1.8 = 9842.8
+  Score = 900 / 9842.8 = 0.09
+
+
+Result: Blog A (2.60) > Blog B (0.72) > Blog C (0.09)
+        ^^ Newer blog with moderate engagement wins!
+
+
+-------------------------------------------------------------------------
+                          DATA FLOW EXAMPLES
+-------------------------------------------------------------------------
+
+1. USER REGISTRATION FLOW
+=========================
+
+   Client                    Server                   Database
+     |                         |                          |
+     |-- POST /signup -------->|                          |
+     |   (email, password)     |                          |
+     |                         |                          |
+     |                         +-- Hash password ---------+
+     |                         |   (bcrypt)               |
+     |                         |                          |
+     |                         +-- Generate username -----+
+     |                         |   (from email)           |
+     |                         |                          |
+     |                         +-- Create user ---------->|
+     |                         |                          +- Save to users
+     |                         |                          |  collection
+     |                         |                          |
+     |                         |<-------------------------+
+     |                         |                          |
+     |                         +-- Generate JWT token     |
+     |                         |   (jwt.sign)             |
+     |                         |                          |
+     |<-- Response -------------+                          |
+     |   (access_token,        |                          |
+     |    profile_img,         |                          |
+     |    username)            |                          |
+     |                         |                          |
+     v                         v                          v
+   Store token
+   in session
+
+
+2. CREATE BLOG POST FLOW
+========================
+
+   Client                    Server                   Database
+     |                         |                          |
+     |-- POST /create-blog --->|                          |
+     |   + JWT token           |                          |
+     |   (title, content...)   |                          |
+     |                         |                          |
+     |                         +-- Verify JWT ------------+
+     |                         |   (verifyJWT)            |
+     |                         |                          |
+     |                         +-- Generate blog_id ------+
+     |                         |   (nanoid)               |
+     |                         |                          |
+     |                         +-- Save blog ------------>|
+     |                         |                          +- Insert into
+     |                         |                          |  blogs collection
+     |                         |                          |
+     |                         +-- Update user ---------->|
+     |                         |   (increment            |
+     |                         |    total_posts,         |
+     |                         |    add to blogs[])      |
+     |                         |                          |
+     |                         |<-------------------------+
+     |                         |                          |
+     |<-- Response -------------+                          |
+     |   (blog_id)             |                          |
+     |                         |                          |
+     v                         v                          v
+   Redirect to
+   /blog/:blog_id
+
+
+3. COMMENT WITH NOTIFICATION FLOW
+=================================
+
+   User A                    Server                   Database
+     |                         |                          |
+     |-- POST /add-comment --->|                          |
+     |   (blog_id, comment)    |                          |
+     |                         |                          |
+     |                         +-- Create comment ------->|
+     |                         |                          +- Save to comments
+     |                         |                          |  collection
+     |                         |                          |
+     |                         +-- Update blog ---------->|
+     |                         |   (add to comments[],   |
+     |                         |    increment activity)  |
+     |                         |                          |
+     |                         |                          |
+     |                         +-- IF (user_id != author) |
+     |                         |      Create notif ------>|
+     |                         |                          +- Save notification
+     |                         |                          |  seen: false
+     |                         |                          |
+     |                         |                          |
+     |<-- Response -------------+<-------------------------+
+     |   (comment data)        |                          |
+     |                         |                          |
+                               |                          |
+                          Blog Author                     |
+                               |                          |
+                               |<--- Next poll -----------+
+                               |    /unread-notification-|
+                               |     count               |
+                               |                          |
+                               |    Response: { count: 1 }|
+                               |                          |
+                               v                          v
+                          Badge shows "1"
+
+
+-------------------------------------------------------------------------
+                        INDEXES RECOMMENDATIONS
+-------------------------------------------------------------------------
+
+// Users Collection
+db.users.createIndex({ "personal_info.email": 1 }, { unique: true })
+db.users.createIndex({ "personal_info.username": 1 }, { unique: true })
+
+// Blogs Collection
+db.blogs.createIndex({ blog_id: 1 }, { unique: true })
+db.blogs.createIndex({ draft: 1, trending_score: -1 })
+db.blogs.createIndex({ draft: 1, publishedAt: -1 })
+db.blogs.createIndex({ author: 1, draft: 1 })
+db.blogs.createIndex({ tags: 1 })
+
+// Comments Collection
+db.comments.createIndex({ blog_id: 1, isReply: 1 })
+db.comments.createIndex({ parent: 1 })
+db.comments.createIndex({ commented_by: 1 })
+
+// Notifications Collection
+db.notifications.createIndex({ notification_for: 1, seen: 1 })
+db.notifications.createIndex({ notification_for: 1, createdAt: -1 })
+db.notifications.createIndex({ user: 1, type: 1 })
+
+
+===============================================================================
+                             END OF DIAGRAM
+===============================================================================
