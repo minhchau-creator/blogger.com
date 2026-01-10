@@ -5,8 +5,9 @@ services:
     runtime: node
     region: singapore
     plan: free
-    buildCommand: cd mern-blogging-website/server && npm install
-    startCommand: cd mern-blogging-website/server && npm start
+    rootDir: mern-blogging-website/server
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: PORT
         value: 3000
@@ -26,8 +27,9 @@ services:
   - type: web
     name: blogger-frontend
     runtime: static
-    buildCommand: cd mern-blogging-website/frontend && npm install && npm run build
-    staticPublishPath: mern-blogging-website/frontend/dist
+    rootDir: mern-blogging-website/frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     routes:
       - type: rewrite
         source: /*
@@ -35,6 +37,11 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: VITE_SERVER_DOMAIN
+        fromService:
+          type: web
+          name: blogger-backend
+          property: url
 
 databases:
   - name: blogger-mongodb
