@@ -26,7 +26,6 @@ services:
   - type: web
     name: blogger-frontend
     runtime: static
-    plan: free
     buildCommand: cd mern-blogging-website/frontend && npm install && npm run build
     staticPublishPath: mern-blogging-website/frontend/dist
     routes:
