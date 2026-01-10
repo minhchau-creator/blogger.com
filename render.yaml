@@ -1,0 +1,46 @@
+services:
+  # Backend API
+  - type: web
+    name: blogger-backend
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: cd mern-blogging-website/server && npm install
+    startCommand: cd mern-blogging-website/server && npm start
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: DB_LOCATION
+        sync: false
+      - key: SECRET_ACCESS_KEY
+        generateValue: true
+      - key: AWS_ACCESS_KEY
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+    healthCheckPath: /
+
+  # Frontend
+  - type: web
+    name: blogger-frontend
+    runtime: static
+    region: singapore
+    plan: free
+    buildCommand: cd mern-blogging-website/frontend && npm install && npm run build
+    staticPublishPath: mern-blogging-website/frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+databases:
+  - name: blogger-mongodb
+    region: singapore
+    plan: free
+    databaseName: blogger
+    user: admin
